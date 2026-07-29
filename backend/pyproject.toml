@@ -1,0 +1,32 @@
+[project]
+name = "prd-architect"
+version = "0.1.0"
+description = "Multi-agent PRD generation system"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.29.0",
+    "langgraph>=0.1.0",
+    "langchain-groq>=0.1.0",
+    "langchain-ollama>=0.1.0",
+    "langchain-core>=0.2.0",
+    "pydantic>=2.7.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true

@@ -1,0 +1,504 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PRD Architect — Interactive Demo</title>
+<meta name="description" content="A multi-agent AI system that turns a raw product concept into a full PRD in seconds. Built with LangGraph, FastAPI, and React." />
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: "Inter", -apple-system, "Segoe UI", system-ui, sans-serif;
+    background: linear-gradient(160deg, #f8fafc 0%, #ffffff 100%);
+    color: #0f172a;
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+    font-size: 15px;
+    line-height: 1.6;
+  }
+
+  .page {
+    max-width: 720px;
+    margin: 0 auto;
+    padding: 56px 24px 80px;
+  }
+
+  /* ── Header ── */
+  .header { text-align: center; margin-bottom: 44px; }
+  .pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid #c7d2fe;
+    background: #eef2ff;
+    color: #4338ca;
+    font-size: 11.5px;
+    font-weight: 600;
+    letter-spacing: .04em;
+    padding: 5px 14px;
+    border-radius: 999px;
+    margin-bottom: 18px;
+  }
+  .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: #6366f1; display: inline-block; }
+  h1 { font-size: 38px; font-weight: 800; letter-spacing: -1px; color: #0f172a; margin-bottom: 12px; }
+  .subtitle { color: #64748b; max-width: 480px; margin: 0 auto; font-size: 15px; line-height: 1.7; }
+
+  /* ── Demo notice ── */
+  .demo-notice {
+    background: #fffbeb;
+    border: 1.5px solid #fde68a;
+    border-radius: 10px;
+    padding: 12px 16px;
+    font-size: 12.5px;
+    color: #92400e;
+    margin-bottom: 28px;
+    text-align: center;
+  }
+  .demo-notice a { color: #b45309; font-weight: 600; }
+
+  /* ── Input area ── */
+  .input-section { margin-bottom: 36px; }
+
+  textarea {
+    width: 100%;
+    min-height: 110px;
+    border: 1.5px solid #e2e8f0;
+    border-radius: 12px;
+    padding: 14px 16px;
+    font-family: inherit;
+    font-size: 14px;
+    color: #0f172a;
+    background: #fff;
+    resize: none;
+    outline: none;
+    transition: border-color .2s, box-shadow .2s;
+    line-height: 1.6;
+  }
+  textarea:focus { border-color: #6366f1; box-shadow: 0 0 0 3px rgba(99,102,241,.12); }
+  textarea::placeholder { color: #94a3b8; }
+  textarea:disabled { opacity: .55; cursor: not-allowed; }
+
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; margin-top: 12px; padding: 13px 24px;
+    font-family: inherit; font-size: 15px; font-weight: 600;
+    border: none; border-radius: 10px; cursor: pointer;
+    transition: background .18s, transform .1s, opacity .18s;
+  }
+  .btn-primary { background: #6366f1; color: #fff; }
+  .btn-primary:hover:not(:disabled) { background: #4f46e5; }
+  .btn-primary:active:not(:disabled) { transform: scale(.99); }
+  .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+  .btn-ghost {
+    background: transparent; color: #64748b;
+    border: 1.5px solid #e2e8f0; width: auto;
+    font-size: 13px; padding: 7px 14px; border-radius: 8px; font-weight: 500;
+  }
+  .btn-ghost:hover { background: #f1f5f9; }
+
+  /* ── Pipeline ── */
+  .pipeline-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .pipeline-label { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; }
+
+  /* ── Agent card ── */
+  .agent-card {
+    background: #fff; border: 1.5px solid #e2e8f0; border-radius: 14px;
+    padding: 18px 20px; margin-bottom: 10px; transition: border-color .3s, box-shadow .3s;
+  }
+  .agent-card.running { border-color: #fbbf24; box-shadow: 0 0 0 3px rgba(251,191,36,.12); }
+  .agent-card.done    { border-color: #6ee7b7; box-shadow: 0 0 0 3px rgba(16,185,129,.06); }
+  .agent-card-top { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+  .agent-left { display: flex; align-items: center; gap: 12px; }
+  .agent-name { font-size: 14.5px; font-weight: 600; color: #0f172a; }
+  .agent-desc { font-size: 13px; color: #64748b; line-height: 1.5; }
+  .icon-circle { display: flex; align-items: center; justify-content: center; }
+  svg.icon { width: 20px; height: 20px; flex-shrink: 0; }
+
+  /* ── Badge ── */
+  .badge { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 10px; font-size: 11.5px; font-weight: 600; white-space: nowrap; }
+  .badge-outline { border: 1.5px solid #e2e8f0; color: #64748b; background: transparent; }
+  .badge-warning  { background: #fef3c7; color: #92400e; border: none; }
+  .badge-success  { background: #d1fae5; color: #065f46; border: none; }
+
+  /* ── Spinner ── */
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .spin { animation: spin .9s linear infinite; transform-origin: center; }
+
+  /* ── PRD Viewer ── */
+  .prd-section { margin-top: 32px; }
+  .prd-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .prd-title { font-size: 16px; font-weight: 700; color: #0f172a; }
+  .btn-row { display: flex; gap: 8px; }
+  .btn-sm {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 6px 13px; font-family: inherit; font-size: 12.5px; font-weight: 500;
+    border: 1.5px solid #e2e8f0; border-radius: 8px; background: #fff; color: #374151;
+    cursor: pointer; transition: background .15s;
+  }
+  .btn-sm:hover { background: #f8fafc; }
+  .btn-sm svg { width: 14px; height: 14px; }
+
+  .prd-body {
+    border: 1.5px solid #e2e8f0; border-radius: 14px; background: #fff;
+    padding: 32px 36px; max-height: 580px; overflow-y: auto;
+  }
+  .prd-body::-webkit-scrollbar { width: 5px; }
+  .prd-body::-webkit-scrollbar-track { background: transparent; }
+  .prd-body::-webkit-scrollbar-thumb { background: #e2e8f0; border-radius: 99px; }
+
+  .prd-body h1 { font-size: 22px; font-weight: 800; color: #0f172a; margin-bottom: 20px; border-bottom: 1.5px solid #f1f5f9; padding-bottom: 12px; }
+  .prd-body h2 { font-size: 16px; font-weight: 700; color: #1e293b; margin: 28px 0 10px; border-bottom: 1px solid #f1f5f9; padding-bottom: 6px; }
+  .prd-body h3 { font-size: 13.5px; font-weight: 700; color: #4f46e5; margin: 18px 0 6px; }
+  .prd-body p  { color: #374151; font-size: 14px; line-height: 1.75; margin-bottom: 10px; }
+  .prd-body ul { padding-left: 20px; margin-bottom: 10px; }
+  .prd-body li { color: #374151; font-size: 13.5px; line-height: 1.7; margin-bottom: 3px; }
+  .prd-body strong { color: #1e293b; }
+
+  .persona-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 20px; }
+  @media (max-width: 520px) { .persona-grid { grid-template-columns: 1fr; } }
+  .persona-card { border: 1.5px solid #e0e7ff; border-radius: 10px; background: #f5f3ff; padding: 14px; }
+  .persona-role { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: #7c3aed; margin-bottom: 4px; }
+  .persona-name { font-size: 14px; font-weight: 700; color: #1e293b; margin-bottom: 8px; }
+  .persona-name small { font-size: 11.5px; font-weight: 500; color: #6b7280; display: block; margin-top: 1px; }
+  .tag-list { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 6px; }
+  .tag { font-size: 11px; border-radius: 6px; padding: 2px 8px; font-weight: 500; }
+  .tag-goal { background: #dbeafe; color: #1d4ed8; }
+  .tag-pain { background: #fee2e2; color: #b91c1c; }
+
+  .ac-card { border: 1.5px solid #e2e8f0; border-radius: 10px; padding: 14px 16px; margin-bottom: 10px; background: #fafafa; }
+  .ac-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .priority-badge { font-size: 10px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 5px; }
+  .must   { background: #fde68a; color: #92400e; }
+  .should { background: #bfdbfe; color: #1e40af; }
+  .could  { background: #d1fae5; color: #065f46; }
+  .ac-feature { font-size: 13.5px; font-weight: 600; color: #0f172a; }
+  .ac-row { font-size: 12.5px; color: #4b5563; line-height: 1.6; }
+  .ac-row span { font-weight: 600; color: #1e293b; }
+
+  .error-box { border: 1.5px solid #fca5a5; background: #fef2f2; border-radius: 12px; padding: 16px 20px; font-size: 13.5px; color: #b91c1c; }
+  .hidden { display: none !important; }
+
+  footer { text-align: center; font-size: 11.5px; color: #94a3b8; margin-top: 56px; padding-top: 20px; border-top: 1px solid #f1f5f9; }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <!-- Header -->
+  <header class="header">
+    <div class="pill"><span class="pill-dot"></span> Multi-Agent · LangGraph · Groq / Ollama</div>
+    <h1>PRD Architect</h1>
+    <p class="subtitle">Describe your product concept. Three specialised AI agents research the market, define user journeys, and write acceptance criteria — producing a full PRD in seconds.</p>
+  </header>
+
+  <!-- Demo notice -->
+  <div class="demo-notice">
+    ⚡ This is an interactive demo — the agent pipeline is simulated.
+    To run the real AI-powered version, see the
+    <a href="https://github.com/alihabbache/The-PRD-Architect#quickstart">README quickstart</a>.
+  </div>
+
+  <!-- Input section -->
+  <section class="input-section" id="inputSection">
+    <textarea id="conceptInput" placeholder="Describe your product idea… e.g. 'A mobile app that helps remote teams run async standups without scheduling meetings'"></textarea>
+    <button class="btn btn-primary" id="generateBtn" disabled>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" style="width:16px;height:16px"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Generate PRD
+    </button>
+    <p style="text-align:center;font-size:12px;color:#94a3b8;margin-top:10px;">Press <kbd style="border:1px solid #e2e8f0;border-radius:4px;padding:1px 5px;font-size:11px;background:#f8fafc">⌘ Enter</kbd> to submit</p>
+  </section>
+
+  <!-- Agent pipeline -->
+  <section id="pipelineSection" class="hidden">
+    <div class="pipeline-header">
+      <span class="pipeline-label">Agent Pipeline</span>
+      <button class="btn-ghost hidden" id="resetBtn">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:13px;height:13px;margin-right:4px"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+        New concept
+      </button>
+    </div>
+
+    <div class="agent-card" id="card-market">
+      <div class="agent-card-top">
+        <div class="agent-left">
+          <div class="icon-circle" id="icon-market"></div>
+          <span class="agent-name">Market Researcher</span>
+        </div>
+        <span class="badge badge-outline" id="badge-market">Waiting</span>
+      </div>
+      <p class="agent-desc">Analyses the target market, maps competitors, and builds user personas.</p>
+    </div>
+
+    <div class="agent-card" id="card-ux">
+      <div class="agent-card-top">
+        <div class="agent-left">
+          <div class="icon-circle" id="icon-ux"></div>
+          <span class="agent-name">UX Specifier</span>
+        </div>
+        <span class="badge badge-outline" id="badge-ux">Waiting</span>
+      </div>
+      <p class="agent-desc">Translates personas into detailed user journeys and interaction flows.</p>
+    </div>
+
+    <div class="agent-card" id="card-tech">
+      <div class="agent-card-top">
+        <div class="agent-left">
+          <div class="icon-circle" id="icon-tech"></div>
+          <span class="agent-name">Technical Translator</span>
+        </div>
+        <span class="badge badge-outline" id="badge-tech">Waiting</span>
+      </div>
+      <p class="agent-desc">Converts user journeys into Gherkin acceptance criteria ready for dev.</p>
+    </div>
+  </section>
+
+  <!-- Error -->
+  <div class="error-box hidden" id="errorBox"></div>
+
+  <!-- PRD Output -->
+  <section class="prd-section hidden" id="prdSection">
+    <div class="prd-header">
+      <span class="prd-title">Generated PRD</span>
+      <div class="btn-row">
+        <button class="btn-sm" id="copyBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          Copy
+        </button>
+        <button class="btn-sm" id="downloadMd">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .md
+        </button>
+        <button class="btn-sm" id="downloadJson">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          .json
+        </button>
+      </div>
+    </div>
+    <div class="prd-body" id="prdBody"></div>
+  </section>
+
+  <footer>Powered by LangGraph &nbsp;·&nbsp; Made with IBM Bob</footer>
+</div>
+
+<script>
+// ── Icons ─────────────────────────────────────────────────────────────────────
+const ICON = {
+  idle:    `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg>`,
+  running: `<svg class="icon spin" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2.2"><path d="M21 12a9 9 0 1 1-6.219-8.56"/></svg>`,
+  done:    `<svg class="icon" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let generatedMarkdown = ""
+let generatedJson = {}
+
+// ── DOM refs ──────────────────────────────────────────────────────────────────
+const textarea        = document.getElementById("conceptInput")
+const generateBtn     = document.getElementById("generateBtn")
+const resetBtn        = document.getElementById("resetBtn")
+const inputSection    = document.getElementById("inputSection")
+const pipelineSection = document.getElementById("pipelineSection")
+const prdSection      = document.getElementById("prdSection")
+const prdBody         = document.getElementById("prdBody")
+const copyBtn         = document.getElementById("copyBtn")
+const dlMd            = document.getElementById("downloadMd")
+const dlJson          = document.getElementById("downloadJson")
+
+// ── Enable button ─────────────────────────────────────────────────────────────
+textarea.addEventListener("input", () => {
+  generateBtn.disabled = textarea.value.trim().length === 0
+})
+
+// ── Agent helpers ─────────────────────────────────────────────────────────────
+function setAgentStatus(id, status) {
+  const card  = document.getElementById("card-" + id)
+  const icon  = document.getElementById("icon-" + id)
+  const badge = document.getElementById("badge-" + id)
+  card.className = "agent-card " + (status === "idle" ? "" : status)
+  icon.innerHTML = ICON[status]
+  const labels = { idle: ["badge-outline","Waiting"], running: ["badge-warning","Running"], done: ["badge-success","Done"] }
+  badge.className = "badge " + labels[status][0]
+  badge.textContent = labels[status][1]
+}
+function resetAgents() {
+  ["market","ux","tech"].forEach(id => setAgentStatus(id, "idle"))
+}
+
+// ── Escape HTML ───────────────────────────────────────────────────────────────
+function esc(str) {
+  return String(str || "")
+    .replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")
+}
+
+// ── Sample state ──────────────────────────────────────────────────────────────
+function getSampleState(concept) {
+  return {
+    concept,
+    market_context: "The " + concept + " space is experiencing rapid growth driven by the global shift toward distributed and digital-first workflows. Key incumbents include established platforms (Notion, Asana, Linear) and emerging niche tools. The total addressable market is estimated at $12B with a 14% YoY CAGR. The primary opportunity lies in reducing context-switching friction and providing AI-assisted prioritisation that existing tools lack.",
+    user_personas: JSON.stringify([
+      { name: "Sarah Chen", role: "Engineering Manager @ Series B startup", goals: ["Cut meeting overhead", "Surface blockers early", "Keep distributed team aligned"], pain_points: ["Async updates buried in Slack", "No single source of truth", "Context-switching fatigue"] },
+      { name: "Marcus Obi",  role: "Product Lead @ Remote-first company",   goals: ["Ship faster with fewer surprises", "Tie daily work to OKRs", "Reduce status-update meetings"], pain_points: ["Manual status aggregation", "Stakeholder visibility gaps", "Tool sprawl across teams"] }
+    ]),
+    user_journeys: JSON.stringify([
+      { persona: "Sarah Chen", goal: "Get a clear team health snapshot before Monday planning", steps: ["Opens the dashboard on her phone at 8 AM", "Views AI-summarised blockers flagged since Friday", "Taps into a thread to add context", "Approves the auto-generated standup summary", "Shares the digest link in the team Slack channel"], pain_points: ["Notifications arrive too late", "Summary misses cross-team dependencies"] },
+      { persona: "Marcus Obi", goal: "Connect daily progress to the quarterly OKR board", steps: ["Logs a completed task with a one-line update", "App prompts to link the update to an active KR", "Selects the relevant key result from a smart dropdown", "OKR progress auto-updates with a confidence indicator", "Stakeholder dashboard reflects the change in real time"], pain_points: ["OKR mapping is manual today", "Confidence scoring is subjective without data"] }
+    ]),
+    acceptance_criteria: JSON.stringify([
+      { feature: "AI Standup Digest",       given: "a team member has logged at least one update in the past 24 hours", when: "the scheduled digest job runs at the configured team time", then: "a structured AI-generated summary is posted to the configured channel within 60 seconds", priority: "must" },
+      { feature: "Blocker Auto-Detection",  given: "an update contains keywords indicating a blocker (e.g. 'blocked', 'waiting on', 'need help')", when: "the update is submitted", then: "the system flags the item and notifies the team lead within 5 minutes", priority: "must" },
+      { feature: "OKR Progress Auto-Linking", given: "a user completes a task tagged with a key result", when: "the task status changes to done", then: "the linked KR progress updates automatically and a confidence delta is recorded", priority: "should" },
+      { feature: "Cross-Team Dependency View", given: "a user is viewing their team's blockers", when: "a blocker is linked to a deliverable owned by another team", then: "the dependency is visually distinguished and the owning team is notified", priority: "could" }
+    ])
+  }
+}
+
+// ── Render PRD ────────────────────────────────────────────────────────────────
+function renderPRD(state) {
+  let personas, journeys, criteria
+  try { personas = JSON.parse(state.user_personas || "[]") }  catch { personas = [] }
+  try { journeys = JSON.parse(state.user_journeys  || "[]") } catch { journeys = [] }
+  try { criteria = JSON.parse(state.acceptance_criteria || "[]") } catch { criteria = [] }
+
+  const personasHtml = personas.map(p => {
+    const goals = (Array.isArray(p.goals) ? p.goals : []).map(g => `<span class="tag tag-goal">${esc(g)}</span>`).join("")
+    const pains = (Array.isArray(p.pain_points) ? p.pain_points : []).map(x => `<span class="tag tag-pain">${esc(x)}</span>`).join("")
+    return `<div class="persona-card">
+      <div class="persona-role">Persona</div>
+      <div class="persona-name">${esc(p.name)}<small>${esc(p.role)}</small></div>
+      <div style="margin-bottom:6px"><div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">GOALS</div><div class="tag-list">${goals}</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:#475569;margin-bottom:4px">PAIN POINTS</div><div class="tag-list">${pains}</div></div>
+    </div>`
+  }).join("")
+
+  const journeysHtml = journeys.map(j => {
+    const steps = (j.steps||[]).map((s,i) => `<li><strong>${i+1}.</strong> ${esc(s)}</li>`).join("")
+    const pains = (j.pain_points||[]).map(p => `<li>${esc(p)}</li>`).join("")
+    return `<h3>${esc(j.persona)} — ${esc(j.goal)}</h3>
+      <p><strong>Steps:</strong></p><ul>${steps}</ul>
+      <p><strong>Pain points:</strong></p><ul>${pains}</ul>`
+  }).join("")
+
+  const criteriaHtml = criteria.map(c => {
+    const p   = (c.priority||"should").toLowerCase()
+    const cls = p === "must" ? "must" : p === "could" ? "could" : "should"
+    return `<div class="ac-card">
+      <div class="ac-header"><span class="priority-badge ${cls}">${p.toUpperCase()}</span><span class="ac-feature">${esc(c.feature)}</span></div>
+      <div class="ac-row"><span>Given</span> ${esc(c.given)}</div>
+      <div class="ac-row"><span>When</span> ${esc(c.when)}</div>
+      <div class="ac-row"><span>Then</span> ${esc(c.then)}</div>
+    </div>`
+  }).join("")
+
+  prdBody.innerHTML = `
+    <h1>PRD: ${esc(state.concept)}</h1>
+    <h2>Market Context</h2><p>${esc(state.market_context)}</p>
+    <h2>User Personas</h2><div class="persona-grid">${personasHtml}</div>
+    <h2>User Journeys</h2>${journeysHtml}
+    <h2>Acceptance Criteria</h2>${criteriaHtml}`
+}
+
+// ── Markdown serialiser (mirrors backend formatter.py) ────────────────────────
+function stateToMarkdown(state) {
+  let personas, journeys, criteria
+  try { personas = JSON.parse(state.user_personas || "[]") }  catch { personas = [] }
+  try { journeys = JSON.parse(state.user_journeys  || "[]") } catch { journeys = [] }
+  try { criteria = JSON.parse(state.acceptance_criteria || "[]") } catch { criteria = [] }
+
+  const lines = [`# PRD: ${state.concept}`, "", "## Market Context", "", state.market_context, "", "## User Personas", ""]
+  for (const p of personas) {
+    lines.push(`### ${p.name} — ${p.role}`, `**Goals:** ${(p.goals||[]).join(", ")}`, `**Pain Points:** ${(p.pain_points||[]).join(", ")}`, "")
+  }
+  lines.push("## User Journeys", "")
+  for (const j of journeys) {
+    lines.push(`### ${j.persona} — ${j.goal}`, "**Steps:**")
+    ;(j.steps||[]).forEach((s,i) => lines.push(`${i+1}. ${s}`))
+    lines.push("", "**Pain Points:**")
+    ;(j.pain_points||[]).forEach(p => lines.push(`- ${p}`))
+    lines.push("")
+  }
+  lines.push("## Acceptance Criteria", "")
+  for (const c of criteria) {
+    lines.push(`### [${(c.priority||"should").toUpperCase()}] ${c.feature}`, `- **Given:** ${c.given}`, `- **When:** ${c.when}`, `- **Then:** ${c.then}`, "")
+  }
+  return lines.join("\n")
+}
+
+// ── Simulate the pipeline ─────────────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)) }
+
+async function runDemo(concept) {
+  inputSection.classList.add("hidden")
+  pipelineSection.classList.remove("hidden")
+  prdSection.classList.add("hidden")
+  resetBtn.classList.add("hidden")
+  resetAgents()
+
+  const state = getSampleState(concept)
+
+  setAgentStatus("market", "running");  await sleep(1600)
+  setAgentStatus("market", "done")
+  setAgentStatus("ux",     "running");  await sleep(2000)
+  setAgentStatus("ux",     "done")
+  setAgentStatus("tech",   "running");  await sleep(1800)
+  setAgentStatus("tech",   "done")
+
+  generatedMarkdown = stateToMarkdown(state)
+  generatedJson = {
+    concept: state.concept,
+    market_context: state.market_context,
+    user_personas:  JSON.parse(state.user_personas),
+    user_journeys:  JSON.parse(state.user_journeys),
+    acceptance_criteria: JSON.parse(state.acceptance_criteria),
+  }
+
+  renderPRD(state)
+  prdSection.classList.remove("hidden")
+  resetBtn.classList.remove("hidden")
+  prdSection.scrollIntoView({ behavior: "smooth", block: "start" })
+}
+
+// ── Events ────────────────────────────────────────────────────────────────────
+generateBtn.addEventListener("click", () => {
+  const c = textarea.value.trim()
+  if (c) runDemo(c)
+})
+
+textarea.addEventListener("keydown", e => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey) && textarea.value.trim()) runDemo(textarea.value.trim())
+})
+
+resetBtn.addEventListener("click", () => {
+  pipelineSection.classList.add("hidden")
+  prdSection.classList.add("hidden")
+  resetAgents()
+  inputSection.classList.remove("hidden")
+  textarea.value = ""
+  generateBtn.disabled = true
+  window.scrollTo({ top: 0, behavior: "smooth" })
+})
+
+copyBtn.addEventListener("click", () => {
+  navigator.clipboard.writeText(generatedMarkdown).then(() => {
+    const orig = copyBtn.innerHTML
+    copyBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2" style="width:14px;height:14px"><polyline points="20 6 9 17 4 12"/></svg> <span style="color:#059669">Copied!</span>`
+    setTimeout(() => { copyBtn.innerHTML = orig }, 2000)
+  })
+})
+
+dlMd.addEventListener("click", () => {
+  const blob = new Blob([generatedMarkdown], { type: "text/markdown" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a"); a.href = url; a.download = "prd.md"; a.click()
+  URL.revokeObjectURL(url)
+})
+
+dlJson.addEventListener("click", () => {
+  const blob = new Blob([JSON.stringify(generatedJson, null, 2)], { type: "application/json" })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement("a"); a.href = url; a.download = "prd.json"; a.click()
+  URL.revokeObjectURL(url)
+})
+</script>
+</body>
+</html>
