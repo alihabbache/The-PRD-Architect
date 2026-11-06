@@ -2,7 +2,10 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import os
+import time
+from collections import defaultdict, deque
 from fastapi import FastAPI, Request, Response
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from prd_architect.api.routes import router
 from prd_architect.api.schemas import HealthResponse
@@ -36,6 +39,37 @@ app.add_middleware(
 )
 
 
+# ── Rate limiting for the LLM-backed endpoint ────────────────────────────────
+# Simple in-memory sliding window per client IP (single-process deployments).
+# Each /generate call spends LLM quota, so unauthenticated bursts are capped.
+# Tune with RATE_LIMIT_MAX / RATE_LIMIT_WINDOW_SECONDS. Behind a reverse proxy,
+# configure uvicorn --proxy-headers so request.client reflects the real client.
+_RATE_MAX = int(os.getenv("RATE_LIMIT_MAX", "5"))
+_RATE_WINDOW = int(os.getenv("RATE_LIMIT_WINDOW_SECONDS", "60"))
+_hits: dict[str, deque] = defaultdict(deque)
+
+
+@app.middleware("http")
+async def rate_limit(request: Request, call_next) -> Response:
+    if request.method == "POST" and request.url.path == "/generate":
+        ip = request.client.host if request.client else "unknown"
+        now = time.monotonic()
+        window = _hits[ip]
+        while window and now - window[0] > _RATE_WINDOW:
+            window.popleft()
+        if len(window) >= _RATE_MAX:
+            return JSONResponse(
+                {"detail": "Too many requests. Please retry later."},
+                status_code=429,
+                headers={"Retry-After": str(_RATE_WINDOW)},
+            )
+        window.append(now)
+        if len(_hits) > 10_000:  # bound memory: drop idle clients
+            for k in [k for k, v in _hits.items() if not v]:
+                del _hits[k]
+    return await call_next(request)
+
+
 @app.middleware("http")
 async def security_headers(request: Request, call_next) -> Response:
     response = await call_next(request)
@@ -44,7 +78,8 @@ async def security_headers(request: Request, call_next) -> Response:
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Cache-Control"] = "no-store"
     # Remove the server fingerprint header
-    response.headers.pop("server", None)
+    if "server" in response.headers:
+        del response.headers["server"]
     return response
 
 
